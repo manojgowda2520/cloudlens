@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Scan {{ s.id }}{% endblock %}
+{% block content %}
+<p class="small"><a href="/scans">← Scans</a></p>
+<h1>Scan {{ s.id }} <span class="pill {{ {'ok':'ok','partial':'warn','failed':'bad'}.get(s.status, '') }}">{{ s.status }}</span></h1>
+<p class="sub">{{ s.started_at|dt }} · {{ s.modules }} · {{ s.accounts }} accounts · {{ "{:,}".format(s.resources or 0) }} resources ·
+  {{ s.findings }} findings{% if s.message %} · {{ s.message }}{% endif %}</p>
+
+{% if diff %}
+<h2>Changes since scan <a href="/scans/{{ prev_id }}">{{ prev_id }}</a></h2>
+{% set d = diff %}
+{% include "_diff.html" %}
+{% endif %}
+
+<h2>Errors ({{ errors|length }})</h2>
+{% if errors %}
+<p class="sub small">An error means part of an account was not inspected. Coverage there is unknown, not clean.</p>
+<div class="table-wrap"><table>
+  <tr><th>Account</th><th>Region</th><th>Where</th><th>Message</th></tr>
+  {% for e in errors %}
+  <tr><td class="mono small">{{ e.account_id }}</td><td>{{ e.region }}</td><td class="mono small">{{ e.collector }}</td><td class="small">{{ e.message }}</td></tr>
+  {% endfor %}
+</table></div>
+{% else %}<div class="panel muted">None. Every collector completed.</div>{% endif %}
+{% endblock %}

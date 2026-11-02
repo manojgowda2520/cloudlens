@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ r.name }}{% endblock %}
+{% block content %}
+<p class="small"><a href="/inventory?account={{ r.account_id }}&service={{ r.service }}">← {{ r.service }} in {{ account.name if account else r.account_id }}</a></p>
+<h1>{{ r.name }}</h1>
+<p class="sub">{{ r.service }} {{ r.type }} · {{ account.name if account else '' }} <span class="mono">{{ r.account_id }}</span> · {{ r.region }}{% if r.created %} · created {{ r.created[:10] }}{% endif %}</p>
+<div class="arn" style="margin-bottom:16px">{{ r.arn }}</div>
+
+{% if r.findings %}
+<h2>Findings</h2>
+<div class="table-wrap"><table>
+  <tr><th>Severity</th><th>Check</th><th>Evidence</th><th>Fix</th></tr>
+  {% for f in r.findings %}
+  <tr><td><span class="sev {{ f.severity }}">{{ f.severity }}</span></td>
+    <td><b class="mono">{{ f.check_id }}</b> {{ f.title }}</td>
+    <td class="evidence">{{ f.evidence }}</td><td class="small">{{ f.remediation }}</td></tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+
+{% if r.cost %}
+<h2>Estimated cost</h2>
+<div class="panel">{% set h = r.cost|sum(attribute='usd_per_hour') %}
+  <b>{{ (h * 730)|usd }}</b> / month <span class="muted">({{ "%.4f"|format(h) }} $/hour, {{ r.cost[0].tier }} estimate)</span></div>
+{% endif %}
+
+{% if r.tags %}
+<h2>Tags</h2>
+<div class="row">{% for k, v in r.tags|dictsort %}<span class="pill">{{ k }} = {{ v }}</span>{% endfor %}</div>
+{% endif %}
+
+<h2>Configuration</h2>
+<p class="small muted">As returned by AWS at scan time. Secret-looking values were removed before storage.</p>
+<pre class="json">{{ r.raw|tojson_pretty }}</pre>
+{% endblock %}

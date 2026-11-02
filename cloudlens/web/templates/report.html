@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ acct.name }} security report</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>body{background:var(--panel)} main{max-width:960px} td{font-size:12.5px}</style>
+</head><body><main>
+<div class="spread"><h1>{{ acct.name }} · security report</h1><span class="muted small">{{ generated }}</span></div>
+<p class="sub"><span class="mono">{{ acct.account_id }}</span> · portal {{ acct.portal_name }} ·
+  {% if ov %}{{ "{:,}".format(ov.resources) }} resources · scanned {{ ov.scanned_at|dt }}{% endif %}
+  {% if ov and ov.mtd %} · spend this month {{ ov.mtd|usd }}{% endif %}</p>
+<div class="row" style="margin-bottom:18px">
+  {% for s in SEVERITIES %}<span class="sev {{ s }}" style="padding:3px 10px">{{ s }} {{ totals[s] }}</span>{% endfor %}
+</div>
+{% if ov and ov.errors %}<p class="small"><span class="pill warn">partial coverage</span> {{ ov.errors }} collector errors in this scan; some resources may not have been checked.</p>{% endif %}
+<table>
+  <tr><th>Severity</th><th>Finding</th><th>Resource</th><th>Evidence</th><th>Fix</th></tr>
+  {% for r in rows %}
+  <tr><td><span class="sev {{ r.severity }}">{{ r.severity }}</span></td><td><b class="mono">{{ r.check_id }}</b> {{ r.title }}</td>
+    <td class="arn">{{ r.arn }}<br>{{ r.region }}</td><td class="evidence">{{ r.evidence }}</td><td>{{ r.remediation }}</td></tr>
+  {% else %}<tr><td colspan="5">No open findings.</td></tr>{% endfor %}
+</table>
+<p class="small muted no-print" style="margin-top:20px">Use your browser's Print → Save as PDF to keep a copy.</p>
+</main></body></html>

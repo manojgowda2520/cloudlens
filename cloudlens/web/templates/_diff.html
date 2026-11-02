@@ -1,0 +1,26 @@
+<div class="grid kpis">
+  <div class="panel kpi"><div class="label">Findings opened</div><div class="value" style="color:var(--crit)">{{ d.opened|length }}</div></div>
+  <div class="panel kpi"><div class="label">Findings closed</div><div class="value" style="color:var(--ok)">{{ d.closed|length }}</div></div>
+  <div class="panel kpi"><div class="label">Resources added</div><div class="value">{{ d.added|length }}</div></div>
+  <div class="panel kpi"><div class="label">Resources removed</div><div class="value">{{ d.removed|length }}</div></div>
+</div>
+{% for title, items in [("Opened", d.opened), ("Closed", d.closed)] if items %}
+<h2>{{ title }} findings</h2>
+<div class="table-wrap"><table>
+  <tr><th>Severity</th><th>Check</th><th>Resource</th><th>Account</th><th>Evidence</th></tr>
+  {% for f in items[:300] %}
+  <tr><td><span class="sev {{ f.severity }}">{{ f.severity }}</span></td><td><b class="mono">{{ f.check_id }}</b> {{ f.title }}</td>
+    <td class="arn">{{ f.arn }}</td><td class="mono small">{{ f.account_id }}</td><td class="evidence">{{ f.evidence }}</td></tr>
+  {% endfor %}
+</table></div>
+{% endfor %}
+{% for title, items in [("Added", d.added), ("Removed", d.removed)] if items %}
+<h2>{{ title }} resources</h2>
+<div class="table-wrap"><table>
+  <tr><th>Name</th><th>Service</th><th>Type</th><th>Account</th><th>Region</th></tr>
+  {% for r in items[:300] %}
+  <tr><td>{% if title == 'Added' %}<a href="/resource?arn={{ r.arn|urlencode }}">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+    <td>{{ r.service }}</td><td class="muted">{{ r.type }}</td><td class="mono small">{{ r.account_id }}</td><td>{{ r.region }}</td></tr>
+  {% endfor %}
+</table></div>
+{% endfor %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<div class="spread">
+  <div><h1>Inventory</h1>
+  <p class="sub">{{ "{:,}".format(total) }} resources{% if total > rows|length %}, showing the first {{ rows|length }} - narrow the filters to see more{% endif %}.</p></div>
+  <a class="btn small no-print" href="/export/inventory.csv">Export CSV</a>
+</div>
+
+<form class="filters" method="get">
+  <select name="account" data-autosubmit>
+    <option value="">All accounts</option>
+    {% for a in accounts %}<option value="{{ a.account_id }}" {{ 'selected' if f.account == a.account_id }}>{{ a.name }}</option>{% endfor %}
+  </select>
+  <select name="region" data-autosubmit>
+    <option value="">All regions</option>
+    {% for r in facets.regions %}<option {{ 'selected' if f.region == r }}>{{ r }}</option>{% endfor %}
+  </select>
+  <select name="service" data-autosubmit>
+    <option value="">All services</option>
+    {% for s in facets.services %}<option value="{{ s.service }}" {{ 'selected' if f.service == s.service }}>{{ s.service }} ({{ s.n }})</option>{% endfor %}
+  </select>
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Search name, ARN, tag, type">
+  <button class="btn">Search</button>
+</form>
+
+{% if not f.service and not f.q and facets.services %}
+<div class="row" style="margin-bottom:14px">
+  {% for s in facets.services[:18] %}
+  <a class="pill" href="?service={{ s.service }}&account={{ f.account }}&region={{ f.region }}">{{ s.service }} · {{ s.n }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if rows %}
+<div class="table-wrap">
+<table>
+  <tr><th>Name</th><th>Service</th><th>Type</th><th>Account</th><th>Region</th><th>Created</th><th>Tags</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/resource?arn={{ r.arn|urlencode }}">{{ r.name }}</a></td>
+    <td>{{ r.service }}</td>
+    <td class="muted">{{ r.type }}</td>
+    <td>{{ r.account_name or r.account_id }}</td>
+    <td>{{ r.region }}</td>
+    <td class="muted small">{{ (r.created or '')[:10] }}</td>
+    <td class="small">{% for k, v in r.tags.items() if k in ('Name','env','Env','environment','Environment','team','Team','owner','Owner','project','Project') %}<span class="pill">{{ k }}={{ v }}</span> {% endfor %}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<div class="panel empty">No resources match. {% if not total %}Run a scan first.{% endif %}</div>
+{% endif %}
+{% endblock %}

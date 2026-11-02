@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="{{ csrf }}">
+<title>{% block title %}cloudlens{% endblock %} · cloudlens</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='11' fill='none' stroke='%232f5bd3' stroke-width='4'/><circle cx='16' cy='16' r='4' fill='%232f5bd3'/></svg>">
+</head>
+<body>
+{% if demo %}<div class="demo-banner">Demo mode: synthetic accounts and findings. Nothing here is real, and scanning is off.</div>{% endif %}
+<header class="top">
+  <div class="bar">
+    <a class="brand" href="/">cloud<span>lens</span></a>
+    <nav>
+      {% for key, label, href in [("overview","Overview","/"),("findings","Findings","/findings"),("inventory","Inventory","/inventory"),("cost","Cost","/cost"),("scans","Scans","/scans"),("portals","Portals","/portals"),("audit","Audit","/audit")] %}
+      <a href="{{ href }}" class="{{ 'on' if nav == key or (nav in ('resource',) and key == 'inventory') or (nav in ('scan','diff') and key == 'scans') else '' }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="grow"></div>
+    <span id="scan-pill" class="pill warn" data-running="{{ '1' if scan_running else '0' }}" {% if not scan_running %}hidden{% endif %}>Scanning…</span>
+    {% if not demo %}
+    <form data-post data-scan action="/scan" class="no-print">
+      <button class="btn primary small" {% if scan_running %}disabled{% endif %}>Scan now</button>
+    </form>
+    {% endif %}
+  </div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<div id="toast" class="toast" role="status"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

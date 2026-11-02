@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Cost{% endblock %}
+{% block content %}
+<h1>Cost</h1>
+<p class="sub">From Cost Explorer, refreshed at most once a day per account (each request costs $0.01). Waste estimates use us-east-1 list prices.</p>
+
+<div class="grid kpis">
+  <div class="panel kpi"><div class="label">Month to date</div><div class="value">{{ c.mtd|usd }}</div></div>
+  <div class="panel kpi"><div class="label">Forecast this month</div><div class="value">{{ c.forecast|usd if c.forecast else '–' }}</div></div>
+  <div class="panel kpi"><div class="label">Last month</div><div class="value">{{ c.last|usd }}</div></div>
+  <div class="panel kpi"><div class="label">Possible savings</div><div class="value" style="color:var(--ok)">{{ c.waste_total|usd }}</div>
+    <div class="note">per month, from {{ c.waste|length }} items</div></div>
+</div>
+
+{% if c.daily %}
+<div class="panel">
+  <div class="spread"><b>Daily spend, last 30 days</b><span class="muted small">all accounts</span></div>
+  {% set mx = (c.daily|map(attribute='v')|max) or 1 %}
+  {% set w = 900 / (c.daily|length) %}
+  <svg class="chart" viewBox="0 0 900 170" preserveAspectRatio="none" role="img" aria-label="Daily spend">
+    {% for d in c.daily %}
+    {% set h = 140 * d.v / mx %}
+    <rect x="{{ loop.index0 * w + 1 }}" y="{{ 145 - h }}" width="{{ w - 2 }}" height="{{ h }}" rx="2"><title>{{ d.day }}: {{ d.v|usd }}</title></rect>
+    {% endfor %}
+    <text x="0" y="165">{{ c.daily[0].day }}</text>
+    <text x="900" y="165" text-anchor="end">{{ c.daily[-1].day }}</text>
+    <text x="900" y="10" text-anchor="end">max {{ mx|usd }}/day</text>
+  </svg>
+</div>
+{% endif %}
+
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(380px,1fr));margin-top:14px">
+  <div>
+    <h2>By account</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Account</th><th class="num">MTD</th><th class="num">Forecast</th><th class="num">Last month</th><th>Updated</th></tr>
+      {% for a in c.accounts %}
+      <tr><td>{{ a.name }}</td><td class="num">{{ a.mtd|usd }}</td><td class="num">{{ a.forecast|usd if a.forecast else '–' }}</td>
+        <td class="num">{{ a.last|usd }}</td>
+        <td class="small {{ 'muted' if not a.error }}">{% if a.error %}<span class="pill bad" title="{{ a.error }}">error</span>{% else %}{{ a.fetched_at|ago }}{% endif %}</td></tr>
+      {% endfor %}
+    </table></div>
+  </div>
+  <div>
+    <h2>By service, this month</h2>
+    <div class="table-wrap"><table>
+      {% set top = (c.by_service|map(attribute='v')|max) if c.by_service else 1 %}
+      {% for s in c.by_service %}
+      <tr><td style="width:45%">{{ s.service }}</td><td style="width:35%"><div class="hbar" style="width:{{ (100 * s.v / top)|round(1) }}%"></div></td>
+        <td class="num">{{ s.v|usd }}</td></tr>
+      {% else %}<tr><td class="muted">No cost data yet.</td></tr>{% endfor %}
+    </table></div>
+  </div>
+</div>
+
+<h2>Waste</h2>
+{% if c.waste %}
+<div class="table-wrap"><table>
+  <tr><th>What</th><th>Resource</th><th>Account</th><th>Region</th><th>Detail</th><th class="num">≈ $/month</th></tr>
+  {% for w in c.waste[:100] %}
+  <tr><td>{{ w.kind }}</td><td><a href="/resource?arn={{ w.arn|urlencode }}">{{ w.name }}</a></td><td class="mono small">{{ w.account_id }}</td>
+    <td>{{ w.region }}</td><td class="small muted">{{ w.detail }}</td><td class="num">{{ w.usd_month|usd }}</td></tr>
+  {% endfor %}
+</table></div>
+{% else %}<div class="panel muted">No obvious waste found in the last scans.</div>{% endif %}
+
+{% if c.top %}
+<h2>Most expensive resources right now</h2>
+<p class="sub small">From the per-resource cost estimators (scan module <code>resource-cost</code>).</p>
+<div class="table-wrap"><table>
+  <tr><th>Resource</th><th>Service</th><th>Account</th><th>Region</th><th class="num">$/hour</th><th class="num">≈ $/month</th></tr>
+  {% for t in c.top %}
+  <tr><td class="mono small">{{ t.resource_id }}</td><td>{{ t.service }}</td><td class="mono small">{{ t.account_id }}</td><td>{{ t.region }}</td>
+    <td class="num">{{ "%.4f"|format(t.h) }}</td><td class="num">{{ (t.h * 730)|usd }}</td></tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

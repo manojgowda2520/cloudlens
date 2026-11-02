@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Scans{% endblock %}
+{% block content %}
+<h1>Scans</h1>
+<p class="sub">Every scan is kept (the newest 30), so you can see what changed between any two.</p>
+
+{% if not demo %}
+<div class="panel no-print" style="margin-bottom:16px">
+  <form data-post data-scan action="/scan" class="row">
+    <b>New scan</b>
+    {% for m in modules %}
+    <label class="row small" style="gap:4px"><input type="checkbox" class="mod" value="{{ m }}" {{ 'checked' if m != 'resource-cost' }}> {{ m }}</label>
+    {% endfor %}
+    <input type="hidden" name="modules" value="inventory,security,cost">
+    <label class="row small" style="gap:4px"><input type="checkbox" name="force_cost" value="1"> refresh cost now</label>
+    <button class="btn primary" {{ 'disabled' if scan_running }}>Start</button>
+  </form>
+  {% if scan_running %}
+  <div style="margin-top:12px"><div class="progress"><div id="scan-progress" style="width:5%"></div></div>
+  <pre id="scan-log" class="log" style="margin:8px 0 0">{% for _, m in progress.log[-8:] %}{{ m }}
+{% endfor %}</pre></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if scans %}
+<form method="get" action="/diff">
+<div class="table-wrap"><table>
+  <tr><th class="no-print">Compare</th><th>#</th><th>Started</th><th>Status</th><th>Modules</th><th class="num">Accounts</th>
+    <th class="num">Resources</th><th class="num">Findings</th><th class="num">Errors</th><th class="num">Took</th></tr>
+  {% for s in scans %}
+  <tr>
+    <td class="no-print"><input type="radio" name="a" value="{{ s.id }}" {{ 'checked' if loop.index == 2 }}> <input type="radio" name="b" value="{{ s.id }}" {{ 'checked' if loop.first }}></td>
+    <td><a href="/scans/{{ s.id }}">{{ s.id }}</a></td>
+    <td>{{ s.started_at|dt }}</td>
+    <td><span class="pill {{ {'ok':'ok','partial':'warn','failed':'bad'}.get(s.status, '') }}">{{ s.status }}</span></td>
+    <td class="small muted">{{ s.modules }}</td>
+    <td class="num">{{ s.accounts }}</td><td class="num">{{ "{:,}".format(s.resources or 0) }}</td>
+    <td class="num">{{ s.findings }}</td><td class="num">{{ s.errors }}</td>
+    <td class="num">{{ ((s.finished_at - s.started_at)|int ~ 's') if s.finished_at else '…' }}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% if scans|length > 1 %}<p class="no-print"><button class="btn">Compare selected (older ← → newer)</button></p>{% endif %}
+</form>
+{% else %}
+<div class="panel empty">No scans yet.</div>
+{% endif %}
+{% endblock %}

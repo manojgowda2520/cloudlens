@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Audit{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<p class="sub">Every AWS API call cloudlens has made in the last 90 days. Anything that is not a read is refused before it is signed,
+  and would show here as <b>blocked</b>.</p>
+
+<div class="grid kpis">
+  <div class="panel kpi"><div class="label">Calls logged</div><div class="value">{{ "{:,}".format(stats.n or 0) }}</div></div>
+  <div class="panel kpi"><div class="label">Blocked (non-read)</div>
+    <div class="value" style="color:{{ 'var(--crit)' if stats.blocked else 'var(--ok)' }}">{{ stats.blocked or 0 }}</div>
+    <div class="note">{{ 'investigate - should be zero' if stats.blocked else 'nothing was ever changed' }}</div></div>
+  <div class="panel kpi"><div class="label">Failed (denied / unavailable)</div><div class="value">{{ stats.failed or 0 }}</div></div>
+</div>
+
+<div class="row" style="margin-bottom:12px">
+  <a class="pill {{ 'ok' if not outcome }}" href="/audit">All</a>
+  <a class="pill {{ 'ok' if outcome == 'blocked' }}" href="/audit?outcome=blocked">Blocked</a>
+  <a class="pill {{ 'ok' if outcome == 'fail' }}" href="/audit?outcome=fail">Failed</a>
+</div>
+
+<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr)">
+<div class="table-wrap"><table>
+  <tr><th>Time</th><th>Account</th><th>Region</th><th>Call</th><th>Outcome</th></tr>
+  {% for r in rows %}
+  <tr><td class="small">{{ r.ts|dt }}</td><td class="mono small">{{ r.account_id or '–' }}</td><td class="small">{{ r.region or '–' }}</td>
+    <td class="mono small">{{ r.service }}:{{ r.operation }}</td>
+    <td><span class="pill {{ 'ok' if r.outcome == 'ok' else ('bad' if r.outcome == 'blocked' else 'warn') }}" title="{{ r.error or '' }}">{{ r.outcome }}</span></td></tr>
+  {% else %}<tr><td colspan="5" class="muted">No calls yet.</td></tr>{% endfor %}
+</table></div>
+<div class="table-wrap"><table>
+  <tr><th>Most frequent calls</th><th class="num">Count</th></tr>
+  {% for t in top %}<tr><td class="mono small">{{ t.service }}:{{ t.operation }}</td><td class="num">{{ "{:,}".format(t.n) }}</td></tr>{% endfor %}
+</table></div>
+</div>
+{% endblock %}

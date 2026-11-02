@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Findings{% endblock %}
+{% block content %}
+<div class="spread">
+  <div><h1>Findings</h1>
+  <p class="sub">{{ rows|length }} {{ 'suppressed' if f.view == 'suppressed' else ('new since the previous scan' if f.view == 'new' else 'open') }} findings, grouped by check.</p></div>
+  <a class="btn small no-print" href="/export/findings.csv">Export CSV</a>
+</div>
+
+<div class="row" style="margin-bottom:12px">
+  {% for s in SEVERITIES %}
+  <a class="sev {{ s }} {{ 'zero' if not totals[s] }}" style="padding:3px 10px"
+     href="?severity={{ '' if f.severity == s else s }}&account={{ f.account }}&check={{ f.check }}&q={{ f.q }}&view={{ f.view }}">
+     {{ s }} {{ totals[s] }}{{ ' ✓' if f.severity == s }}</a>
+  {% endfor %}
+</div>
+
+<form class="filters" method="get">
+  <input type="hidden" name="severity" value="{{ f.severity }}">
+  <select name="account" data-autosubmit>
+    <option value="">All accounts</option>
+    {% for a in accounts %}<option value="{{ a.account_id }}" {{ 'selected' if f.account == a.account_id }}>{{ a.name }} ({{ a.account_id }})</option>{% endfor %}
+  </select>
+  <select name="check" data-autosubmit>
+    <option value="">All checks</option>
+    {% for c in checks.values()|sort(attribute='id') %}<option value="{{ c.id }}" {{ 'selected' if f.check == c.id }}>{{ c.id }} · {{ c.title }}</option>{% endfor %}
+  </select>
+  <select name="view" data-autosubmit>
+    <option value="" {{ 'selected' if not f.view }}>Open</option>
+    <option value="new" {{ 'selected' if f.view == 'new' }}>New since previous scan</option>
+    <option value="suppressed" {{ 'selected' if f.view == 'suppressed' }}>Suppressed</option>
+  </select>
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Search resource, title, evidence">
+  <button class="btn">Filter</button>
+</form>
+
+{% if not rows %}
+<div class="panel empty">Nothing here{% if not f.severity and not f.q and not f.view %}. Run a scan to see findings{% endif %}.</div>
+{% endif %}
+
+{% for check_id, items in by_check.items() %}
+{% set c = checks.get(check_id) %}
+<details class="check" {{ 'open' if by_check|length <= 3 or f.check }}>
+  <summary>
+    <span class="sev {{ items[0].severity }}">{{ items|length }}</span>
+    <b class="mono">{{ check_id }}</b>
+    <span>{{ items[0].title if check_id.startswith('AWS-') else (c.title if c else items[0].title) }}</span>
+    <span class="grow"></span>
+    <span class="muted small">{{ items|map(attribute='account_id')|unique|list|length }} account(s)</span>
+  </summary>
+  <div class="fix"><b>Fix:</b> {{ items[0].remediation }}</div>
+  <div class="table-wrap" style="border:0;border-radius:0">
+  <table>
+    <tr><th>Severity</th><th>Resource</th><th>Account</th><th>Region</th><th>Evidence</th><th class="no-print"></th></tr>
+    {% for r in items %}
+    <tr>
+      <td><span class="sev {{ r.severity }}">{{ r.severity }}</span></td>
+      <td><a href="/resource?arn={{ r.arn|urlencode }}">{{ r.arn.split(':')[-1].split('/')[-1] or r.arn }}</a><div class="arn">{{ r.arn }}</div></td>
+      <td>{{ r.account_name or r.account_id }}</td>
+      <td>{{ r.region }}</td>
+      <td class="evidence">{{ r.evidence }}</td>
+      <td class="no-print right">
+        {% if f.view == 'suppressed' %}
+        <button class="btn small" data-post-url="/unsuppress" data-f-check_id="{{ r.check_id }}" data-f-arn="{{ r.arn }}" data-reload>Unsuppress</button>
+        {% else %}
+        <form data-post data-reload action="/suppress" class="row" style="flex-wrap:nowrap">
+          <input type="hidden" name="check_id" value="{{ r.check_id }}"><input type="hidden" name="arn" value="{{ r.arn }}">
+          <input name="reason" placeholder="Reason" required style="width:120px;padding:3px 6px">
+          <button class="btn small">Suppress</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</details>
+{% endfor %}
+{% endblock %}

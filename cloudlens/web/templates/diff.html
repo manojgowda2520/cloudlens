@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Compare scans{% endblock %}
+{% block content %}
+<p class="small"><a href="/scans">← Scans</a></p>
+<h1>Scan {{ a }} → scan {{ b }}</h1>
+<p class="sub">Compared over the {{ d.accounts|length }} account(s) both scans covered.</p>
+{% include "_diff.html" %}
+{% endblock %}

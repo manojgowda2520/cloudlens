@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Portals{% endblock %}
+{% block content %}
+<h1>SSO portals</h1>
+<p class="sub">Each portal is one IAM Identity Center start URL. cloudlens finds every account behind it; tick the ones to scan.
+  Sign-in tokens are stored owner-only in <code>~/.cloudlens/sso</code> and never shown.</p>
+
+{% if not demo %}
+<div class="panel" style="margin-bottom:18px">
+  <form data-post action="/portals" class="row" style="align-items:end">
+    <label class="field">Name<input name="name" required placeholder="Mobil80 main"></label>
+    <label class="field" style="flex:1;min-width:260px">Start URL<input name="start_url" required placeholder="https://your-org.awsapps.com/start" type="url"></label>
+    <label class="field">SSO region<input name="sso_region" required placeholder="ap-south-1" style="width:130px"></label>
+    <button class="btn primary">Add portal</button>
+  </form>
+  <p class="small muted" style="margin:10px 0 0">The start URL and region are on the AWS access portal sign-in page, or in <code>~/.aws/config</code> under <code>sso_start_url</code> / <code>sso_region</code>.</p>
+</div>
+{% endif %}
+
+{% for p in portals %}
+<div class="panel" id="{{ p.id }}" style="margin-bottom:16px">
+  <div class="spread">
+    <div>
+      <h2 style="margin:0">{{ p.name }}</h2>
+      <div class="small muted">{{ p.start_url }} · {{ p.sso_region }}</div>
+    </div>
+    <div class="row no-print">
+      {% if p.logged_in %}
+        <span class="pill ok">signed in · until {{ p.expires|dt }}</span>
+        <button class="btn small" data-post-url="/portals/{{ p.id }}/discover">Refresh accounts</button>
+        <button class="btn small" data-post-url="/portals/{{ p.id }}/logout">Sign out</button>
+      {% else %}
+        <span class="pill warn">signed out</span>
+        {% if not demo %}<button class="btn small primary" data-login="{{ p.id }}">Sign in</button>{% endif %}
+      {% endif %}
+      {% if not demo %}<button class="btn small danger" data-post-url="/portals/{{ p.id }}/remove" data-confirm="Remove {{ p.name }} and its accounts from cloudlens? Scan history for them is kept until pruned.">Remove</button>{% endif %}
+    </div>
+  </div>
+  <div id="login-{{ p.id }}" class="panel small" style="margin-top:12px;background:var(--soft)" hidden></div>
+
+  {% if p.accounts %}
+  <div class="row small" style="margin:14px 0 6px">
+    <b>{{ p.accounts|selectattr('enabled')|list|length }} of {{ p.accounts|length }} accounts scanned</b>
+    <button class="btn small" data-post-url="/accounts/bulk/{{ p.id }}" data-fenabled="1">Enable all</button>
+    <button class="btn small" data-post-url="/accounts/bulk/{{ p.id }}" data-fenabled="0">Disable all</button>
+  </div>
+  <div class="table-wrap"><table>
+    <tr><th>Scan</th><th>Account</th><th>Role used</th><th>Regions (blank = all enabled)</th></tr>
+    {% for a in p.accounts %}
+    {% set roles = (a.roles and a.roles|fromjson) or [] %}
+    <tr>
+      <td><input type="checkbox" name="enabled" data-save="/accounts/{{ a.account_id }}" data-field="enabled" {{ 'checked' if a.enabled }}></td>
+      <td>{{ a.name }}<div class="mono small muted">{{ a.account_id }} {{ a.email or '' }}</div></td>
+      <td><select name="role_name" data-save="/accounts/{{ a.account_id }}" data-field="role">
+        {% for r in roles %}<option {{ 'selected' if r == a.role_name }}>{{ r }}</option>{% endfor %}
+      </select>{% if a.role_name and 'admin' in a.role_name|lower %}<div class="small muted">admin role: cloudlens still only reads</div>{% endif %}</td>
+      <td><input name="regions" data-save="/accounts/{{ a.account_id }}" data-field="regions" placeholder="e.g. ap-south-1 us-east-1"
+        value="{{ (a.regions|fromjson)|join(' ') if a.regions else '' }}" style="width:100%"></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif p.logged_in %}
+  <p class="muted">No accounts found yet. <a href="#" data-post-url="/portals/{{ p.id }}/discover">Refresh accounts</a>.</p>
+  {% else %}
+  <p class="muted small">Sign in to discover the accounts behind this portal.</p>
+  {% endif %}
+</div>
+{% else %}
+<div class="panel empty">No portals yet. Add one above.</div>
+{% endfor %}
+{% endblock %}

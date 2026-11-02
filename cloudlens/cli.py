@@ -15,7 +15,7 @@ from prometheus_client import start_http_server
 from . import __version__
 from .cost.base import registry as estimator_registry
 from .cost.collector import Collector
-from . import paths
+from . import commands, paths
 from .config import Config
 from .cost.exporter import CostRegistry, build_registry
 
@@ -28,11 +28,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run = sub.add_parser("run", help="collect continuously and serve /metrics")
+    run = sub.add_parser("collect", aliases=["run"],
+                         help="collect per-resource cost continuously and serve Prometheus /metrics")
     run.add_argument("-c", "--config", default=None,
                      help="config file (default: ~/.cloudlens/config.yaml)")
 
-    once = sub.add_parser("once", help="run one sweep and print the result")
+    once = sub.add_parser("once", help="run one cost sweep and print the result")
     once.add_argument("-c", "--config", default=None,
                      help="config file (default: ~/.cloudlens/config.yaml)")
     once.add_argument("--json", action="store_true", help="emit JSON instead of a table")
@@ -47,8 +48,12 @@ def main(argv: list[str] | None = None) -> int:
     policy.add_argument("-c", "--config", default=None,
                         help="restrict to the estimators this config enables")
 
+    commands.register(sub)
+
     args = parser.parse_args(argv)
 
+    if args.command in commands.COMMANDS:
+        return commands.dispatch(args)
     if args.command == "estimators":
         return _cmd_estimators()
     if args.command == "iam-policy":

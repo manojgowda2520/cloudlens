@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+{% if not portals %}
+<div class="panel empty">
+  <h1>Welcome to cloudlens</h1>
+  <p>Add your first AWS SSO portal to start. cloudlens finds every account behind it, and you choose which to scan.</p>
+  <p><a class="btn primary" href="/portals">Add an SSO portal</a></p>
+  <p class="small">Everything stays on this machine in <code>~/.cloudlens</code>. Every AWS call is read-only and logged.</p>
+</div>
+{% elif not accounts %}
+<div class="panel empty">
+  <h1>No accounts enabled yet</h1>
+  <p>{{ all_accounts }} accounts were found through your portals. Tick the ones to monitor.</p>
+  <p><a class="btn primary" href="/portals">Choose accounts</a></p>
+</div>
+{% else %}
+<div class="spread">
+  <div>
+    <h1>All accounts</h1>
+    <p class="sub">{{ accounts|length }} accounts across {{ portals|length }} portal{{ 's' if portals|length != 1 }} ·
+      last scan {{ last_scan.finished_at|ago if last_scan else 'never' }}{% if last_scan and last_scan.status != 'ok' %} <span class="pill warn">{{ last_scan.status }}</span>{% endif %}</p>
+  </div>
+</div>
+
+<div class="grid kpis">
+  <div class="panel kpi"><div class="label">Spend this month</div><div class="value">{{ mtd|usd }}</div>
+    <div class="note">forecast {{ forecast|usd if forecast else '–' }}</div></div>
+  <div class="panel kpi"><div class="label">Critical findings</div><div class="value" style="color:var(--crit)">{{ totals.Critical }}</div>
+    <div class="note"><a href="/findings?severity=Critical">review</a></div></div>
+  <div class="panel kpi"><div class="label">High findings</div><div class="value" style="color:var(--high)">{{ totals.High }}</div>
+    <div class="note"><a href="/findings?severity=High">review</a></div></div>
+  <div class="panel kpi"><div class="label">Medium / Low</div><div class="value">{{ totals.Medium }} / {{ totals.Low }}</div>
+    <div class="note"><a href="/findings">all findings</a></div></div>
+  <div class="panel kpi"><div class="label">Resources</div><div class="value">{{ "{:,}".format(resources) }}</div>
+    <div class="note"><a href="/inventory">inventory</a></div></div>
+</div>
+
+<div class="grid cards">
+{% for a in accounts %}
+  <div class="panel card">
+    <div class="spread">
+      <h3>{{ a.name }}</h3>
+      <span class="pill">{{ a.portal_name }}</span>
+    </div>
+    <div class="meta mono">{{ a.account_id }} · {{ a.role_name or 'no role' }}</div>
+    <div class="row" style="margin-bottom:12px">
+      {% for s in SEVERITIES[:4] %}
+      <a href="/findings?account={{ a.account_id }}&severity={{ s }}" title="{{ s }}" class="sev {{ s }} {{ 'zero' if not a.severity[s] }}">{{ a.severity[s] }}</a>
+      {% endfor %}
+      <span class="grow"></span>
+      <span class="muted small">{{ "{:,}".format(a.resources) }} resources</span>
+    </div>
+    <div class="spread small">
+      <span>MTD <b>{{ a.mtd|usd }}</b>{% if a.forecast %} · forecast {{ a.forecast|usd }}{% endif %}</span>
+      <span class="muted">{% if a.scanned_at %}scanned {{ a.scanned_at|ago }}{% else %}not scanned{% endif %}</span>
+    </div>
+    {% if a.errors %}<div class="small" style="margin-top:8px"><span class="pill warn">partial coverage</span>
+      <a href="/scans/{{ a.scan_id }}">{{ a.errors }} errors</a></div>{% endif %}
+    {% if a.cost_error %}<div class="small muted" style="margin-top:6px">Cost: {{ a.cost_error[:90] }}</div>{% endif %}
+    <div class="row small" style="margin-top:10px">
+      <a href="/inventory?account={{ a.account_id }}">Inventory</a>
+      <a href="/findings?account={{ a.account_id }}">Findings</a>
+      <a href="/report/{{ a.account_id }}" target="_blank">Report</a>
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}
