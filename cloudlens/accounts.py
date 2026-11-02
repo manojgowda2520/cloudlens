@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 import boto3
 from botocore.config import Config as BotoConfig
 
+from . import guard
 from .config import AccountConfig
 
 log = logging.getLogger(__name__)
@@ -35,9 +36,14 @@ _ID_RETRY_BACKOFF = timedelta(minutes=1)
 class AccountSession:
     """Lazily-refreshing boto3 session for one account, plus a per-region client cache."""
 
-    def __init__(self, cfg: AccountConfig, session_name: str = "cloudlens"):
+    def __init__(self, cfg: AccountConfig, session_name: str = "cloudlens",
+                 source=None, audit: "guard.AuditLog | None" = None):
         self.cfg = cfg
         self.session_name = session_name
+        # Optional credential source (e.g. SSO). Without one, the account is reached
+        # through ambient credentials or STS AssumeRole, as configured.
+        self.source = source
+        self.audit = audit
         self._lock = threading.Lock()
         self._session: boto3.Session | None = None
         self._expires: datetime | None = None
@@ -96,11 +102,19 @@ class AccountSession:
             return self._session
 
     def _build_session(self) -> boto3.Session:
+        # Every session is read-only-guarded, whatever the credentials behind it.
+        return guard.protect(self._raw_session(), account=self.cfg.account_id,
+                             portal=getattr(self.source, "portal_id", ""), audit=self.audit)
+
+    def _raw_session(self) -> boto3.Session:
+        if self.source is not None:
+            session, self._expires = self.source.session()
+            return session
         if not self.cfg.role_arn:
             self._expires = None
             return boto3.Session()
 
-        sts = boto3.Session().client("sts", config=BOTO_CONFIG)
+        sts = guard.protect(boto3.Session(), audit=self.audit).client("sts", config=BOTO_CONFIG)
         kwargs = {
             "RoleArn": self.cfg.role_arn,
             "RoleSessionName": self.session_name,
