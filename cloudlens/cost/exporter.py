@@ -26,7 +26,7 @@ from collections import defaultdict
 from prometheus_client import CollectorRegistry
 from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 
-from .models import ResourceCost, Tier, _sanitize
+from .models import ResourceCost, _sanitize
 
 log = logging.getLogger(__name__)
 

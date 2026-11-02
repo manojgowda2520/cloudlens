@@ -11,7 +11,7 @@ from typing import Iterable
 from ..base import Context, Estimator, register, safe
 from ..cloudwatch import MetricQuery
 from ..models import ResourceCost, Tier
-from ._util import GB, priced
+from ._util import priced
 
 log = logging.getLogger(__name__)
 
