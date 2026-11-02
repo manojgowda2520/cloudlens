@@ -2,7 +2,7 @@
 
 **One local dashboard for every AWS account I can reach: what's running, what it costs, what's insecure.**
 
-Status: draft for review · 2026-11-02 · Owner: Manoj Kumar K
+Status: M0–M5 implemented 2026-11-02 (not yet run against real accounts) · Owner: Manoj Kumar K
 Grows out of `costlens` (cost estimators, multi-account sessions, Prometheus/Grafana), which is kept and extended rather than rewritten.
 
 ---
@@ -226,8 +226,10 @@ cloudlens/
 | **M4** | Cost page (Cost Explorer daily + waste hints), estimator join, optional Grafana | MTD per account matches the Billing console within ±1% |
 | **M5** | Scan history/diff, exports, demo dataset, README, CI | Public repo ready to put on the resume |
 
-## 13. Open questions
+## 13. Decisions taken
 
-1. Scheduled nightly scan via launchd: on by default, or manual only?
-2. Should the app ever offer to use a **ReadOnly role instead of Admin** where one exists in a portal? The plan above defaults to the least-privileged role available.
-3. Old `costlens` folder in the archive repo: leave it as an archive, or replace it with a pointer to the new repo?
+1. Nightly scan: off by default. `cloudlens schedule` prints a launchd job to install by hand.
+2. Role choice: the least-privileged role a portal offers is the default (ReadOnly before Admin); it can be changed per account.
+3. The old `costlens` folder in the archive repo stays as it is.
+4. Python 3.9+ is supported, so it runs on the macOS system Python; CI tests 3.9 and 3.12.
+5. The UI loads no third-party scripts or fonts (charts are server-rendered SVG), so it works offline and the CSP is `'self'` only.
