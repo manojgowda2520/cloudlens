@@ -41,7 +41,7 @@ The SSO role is **AdministratorAccess**, so safety is enforced in code, not by I
 ### 4.1 Model
 
 ```
-Portal (one SSO start URL)        e.g. "Mobil80 main", https://xxxx.awsapps.com/start, region ap-south-1
+Portal (one SSO start URL)        e.g. "Main portal", https://xxxx.awsapps.com/start, region ap-south-1
  └─ Account (discovered)          e.g. Prod 1234…, Dev 5678…
      └─ Role (picked once)        e.g. AdministratorAccess
 ```

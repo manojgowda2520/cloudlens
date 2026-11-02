@@ -2,7 +2,7 @@ from cloudlens import secrets
 
 
 def test_scrub_redacts_every_value_and_names_the_risky_ones():
-    env = {"DB_PASSWORD": "s3cr3t-value!", "STAGE": "prod", "AWS_KEY": "AKIAABCDEFGHIJKLMNOP",
+    env = {"DB_PASSWORD": "s3cr3t-value!", "STAGE": "prod", "AWS_KEY": "AKIAIOSFODNN7EXAMPLE",
            "SECRET_ARN": "arn:aws:secretsmanager:us-east-1:111111111111:secret:x", "TOKEN": ""}
     redacted, hits = secrets.scrub_env(env)
     assert set(redacted.values()) == {secrets.REDACTED}
