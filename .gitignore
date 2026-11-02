@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.cache/
+config.yaml
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Real AWS state never belongs in the repo; it lives in ~/.cloudlens
+*.db
+*.db-*
+.cloudlens/

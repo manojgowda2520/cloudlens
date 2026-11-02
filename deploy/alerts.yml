@@ -1,0 +1,101 @@
+groups:
+  - name: cloudlens-spend
+    interval: 60s
+    rules:
+      # A resource whose burn rate tripled against its own 6h baseline. This is the
+      # alert that actually catches a runaway Lambda retry loop or a log group someone
+      # just switched to DEBUG - minutes after it starts, not on next month's invoice.
+      - alert: ResourceCostSpike
+        expr: |
+          cloudlens_resource_usd_per_hour > 0.10
+          and
+          cloudlens_resource_usd_per_hour
+            > 3 * avg_over_time(cloudlens_resource_usd_per_hour[6h] offset 1h)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            {{ $labels.service }}/{{ $labels.resource_id }} is burning
+            ${{ printf "%.2f" $value }}/hr, 3x its 6h baseline
+          description: >-
+            Account {{ $labels.account_name }} in {{ $labels.region }},
+            dimension {{ $labels.dimension }}.
+
+      - alert: AccountSpendRunRateHigh
+        expr: sum by (account_name) (cloudlens_resource_usd_per_hour) * 730 > 5000
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            {{ $labels.account_name }} is on track for
+            ${{ printf "%.0f" $value }}/month
+
+      # Cost with no owner. Requires tag_keys to include your ownership tag.
+      - alert: UntaggedSpend
+        expr: |
+          sum by (account_name) (cloudlens_resource_usd_per_hour{tag_team=""}) * 730 > 500
+        for: 6h
+        labels:
+          severity: info
+        annotations:
+          summary: >-
+            ${{ printf "%.0f" $value }}/month of untagged spend in
+            {{ $labels.account_name }}
+
+  - name: cloudlens-health
+    interval: 60s
+    rules:
+      - alert: CollectorStalled
+        expr: time() - cloudlens_last_success_timestamp_seconds > 900
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            {{ $labels.estimator }} has not succeeded for
+            {{ $labels.account_id }}/{{ $labels.region }} in 15 minutes
+          description: >-
+            Usually an expired or misconfigured assumed role, or a missing IAM
+            permission. Check the collector logs and compare against
+            `cloudlens iam-policy`.
+
+      - alert: CollectorErrorRate
+        expr: |
+          rate(cloudlens_collection_errors_total[15m])
+            / rate(cloudlens_collections_total[15m]) > 0.25
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            {{ $labels.estimator }} is failing {{ printf "%.0f" $value }}% of passes
+
+      # The estimate has drifted far from what AWS actually billed. Sustained low
+      # values are normal with Savings Plans; a sudden move means a pricing assumption
+      # broke, or a service started billing on a dimension nothing here models.
+      - alert: EstimateDriftHigh
+        expr: |
+          cloudlens_estimate_drift_ratio > 1.5 or cloudlens_estimate_drift_ratio < 0.5
+        for: 6h
+        labels:
+          severity: info
+        annotations:
+          summary: >-
+            {{ $labels.service }} estimate is {{ printf "%.2f" $value }}x the
+            Cost Explorer actual in {{ $labels.account_id }}
+
+      - alert: PricingFallbackInUse
+        expr: rate(cloudlens_pricing_fallback_total[1h]) > 0
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: >-
+            {{ $labels.service }} is falling back to a pinned price
+            ({{ $labels.price_key }})
+          description: >-
+            The Pricing API returned nothing for this lookup, so a hardcoded
+            us-east-1 list price is being used. Reported cost for this service may be
+            wrong, especially outside us-east-1.

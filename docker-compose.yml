@@ -1,0 +1,59 @@
+name: cloudlens
+
+services:
+  collector:
+    build: .
+    container_name: cloudlens
+    restart: unless-stopped
+    ports:
+      - "9101:9101"
+    volumes:
+      - ./config.yaml:/etc/cloudlens/config.yaml:ro
+      - pricing-cache:/var/lib/cloudlens
+      # Local development: reuse your own AWS profile. In production, drop this and
+      # give the task an IAM role instead.
+      - ${USERPROFILE:-${HOME}}/.aws:/home/cloudlens/.aws:ro
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      CLOUDLENS_EXTERNAL_ID: ${CLOUDLENS_EXTERNAL_ID:-}
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: cloudlens-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Cost data is only interesting in aggregate over months, and the series count
+      # is modest, so a long retention is cheap and makes trend panels useful.
+      - --storage.tsdb.retention.time=180d
+    depends_on:
+      - collector
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: cloudlens-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    depends_on:
+      - prometheus
+
+volumes:
+  pricing-cache:
+  prometheus-data:
+  grafana-data:

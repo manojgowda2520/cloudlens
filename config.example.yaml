@@ -1,0 +1,62 @@
+# cloudlens configuration.
+#
+# ${VAR} anywhere in this file is expanded from the environment, so role ARNs and
+# external IDs can come from your secret store rather than living in git.
+
+# Regions swept for every account unless the account overrides them. Every extra
+# region multiplies the API calls per sweep - list only where you actually run things.
+regions:
+  - us-east-1
+  - ap-south-1
+
+accounts:
+  # The account the collector itself runs in. Omit role_arn to use ambient credentials
+  # (instance profile, IRSA, ECS task role, or your local AWS profile).
+  - account_id: "111111111111"
+    name: platform-prod
+
+  # Member accounts, reached by assuming the read-only role deployed by
+  # deploy/iam/member-role.yaml.
+  - account_id: "222222222222"
+    name: data-prod
+    role_arn: arn:aws:iam::222222222222:role/CloudlensReader
+    external_id: ${CLOUDLENS_EXTERNAL_ID}
+
+  - account_id: "333333333333"
+    name: sandbox
+    role_arn: arn:aws:iam::333333333333:role/CloudlensReader
+    external_id: ${CLOUDLENS_EXTERNAL_ID}
+    regions: [us-east-1]        # this account only runs in one region
+
+# Which estimators to run. "*" means every registered one; see `cloudlens estimators`.
+estimators: ["*"]
+disabled_estimators: []
+
+# Cadences, in seconds.
+#   scrape_interval    - CloudWatch-derived estimators (lambda, dynamodb, sqs, logs...)
+#   inventory_interval - describe/list estimators (ec2, ebs, rds...) - these change slowly
+#   billing_interval   - Cost Explorer. Each call costs $0.01, so 3600 is ~$7/mo across
+#                        10 accounts. Do not set this low.
+scrape_interval: 60
+inventory_interval: 300
+billing_interval: 3600
+
+# Cardinality control. Resources below the floor, and everything past the top N in a
+# given (account, region, service, dimension) group, are folded into a single
+# __other__ series so totals stay correct without exploding Prometheus.
+top_n: 200
+min_usd_per_hour: 0.00001
+
+# Tags promoted to metric labels, so you can slice cost by team or environment.
+# Each key costs one label on every series - keep this list short.
+tag_keys:
+  - Team
+  - Environment
+
+pricing_cache_dir: .cache/pricing
+pricing_cache_ttl: 86400
+
+ce_enabled: true
+max_workers: 8
+port: 9101
+log_level: INFO

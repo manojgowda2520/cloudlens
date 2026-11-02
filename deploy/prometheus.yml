@@ -1,0 +1,21 @@
+global:
+  # Match the collector's fastest cadence. Scraping faster than the collector refreshes
+  # just resamples the same numbers; scraping slower loses resolution on the integrated
+  # cost counter.
+  scrape_interval: 60s
+  evaluation_interval: 60s
+  external_labels:
+    monitor: cloudlens
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: cloudlens
+    static_configs:
+      - targets: ["collector:9101"]
+    # The collector already caps cardinality (top_n / min_usd_per_hour in config.yaml),
+    # so no metric_relabel_configs are needed here. If you do need to trim further,
+    # prefer raising min_usd_per_hour over dropping series at ingest - the collector
+    # folds what it drops into a __other__ series, so totals stay correct, whereas
+    # dropping here silently loses the money.

@@ -1,0 +1,319 @@
+{
+  "uid": "cloudlens-overview",
+  "title": "AWS Cost - Live Attribution",
+  "tags": ["cloudlens", "aws", "finops"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "time": { "from": "now-6h", "to": "now" },
+  "description": "Per-resource AWS spend derived from CloudWatch usage and the AWS Pricing API. Total spend = derived resources (tier != billing) + Cost Explorer for services with no per-resource estimator (dimension = fallback_only). Adding the billing tier to the derived tier would double-count.",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "cloudlens-prom" },
+        "hide": 0
+      },
+      {
+        "name": "account",
+        "label": "Account",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(cloudlens_resource_usd_per_hour, account_name)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "region",
+        "label": "Region",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(cloudlens_resource_usd_per_hour{account_name=~\"$account\"}, region)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\"}, service)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Current burn rate",
+      "description": "Sum of every resource's derived hourly rate, plus Cost Explorer for services with no per-resource estimator.",
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"}) + sum(cloudlens_resource_usd_per_hour{account_name=~\"$account\", tier=\"billing\", dimension=\"fallback_only\"})",
+          "legendFormat": "USD/hour"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 3,
+          "color": { "mode": "fixed", "fixedColor": "text" }
+        }
+      },
+      "options": {
+        "textMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Projected monthly",
+      "description": "Current burn rate held flat for 730 hours. Accurate for steady workloads; treat it as a run rate, not a forecast.",
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"}) + sum(cloudlens_resource_usd_per_hour{account_name=~\"$account\", tier=\"billing\", dimension=\"fallback_only\"})) * 730",
+          "legendFormat": "USD/month"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD", "decimals": 0 }
+      },
+      "options": {
+        "textMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Accrued over selected range",
+      "description": "Integral of the burn rate across the dashboard time range - what the selected resources actually cost during that window.",
+      "gridPos": { "h": 5, "w": 5, "x": 10, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(cloudlens_resource_usd_total{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"}[$__range]))",
+          "legendFormat": "USD"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 } },
+      "options": { "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Attribution fidelity",
+      "description": "How much of the bill can be traced to a specific resource. realtime = derived from usage metrics; inventory = derived from resource configuration; billing = Cost Explorer, service level only.",
+      "gridPos": { "h": 5, "w": 9, "x": 15, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tier) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", tier!=\"billing\"})",
+          "legendFormat": "{{tier}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(cloudlens_resource_usd_per_hour{account_name=~\"$account\", tier=\"billing\", dimension=\"fallback_only\"})",
+          "legendFormat": "billing (no per-resource data)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 3 } },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Burn rate by service",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"})",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "custom": { "fillOpacity": 25, "stacking": { "mode": "normal" }, "lineWidth": 1, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Burn rate by account",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (account_name) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"})",
+          "legendFormat": "{{account_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "custom": { "fillOpacity": 25, "stacking": { "mode": "normal" }, "lineWidth": 1, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Top 25 resources right now",
+      "description": "This is the answer to \"which Lambda function\". Every bar is one named resource.",
+      "gridPos": { "h": 13, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "expr": "topk(25, sum by (service, resource_id) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"}))",
+          "legendFormat": "{{service}} / {{resource_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "color": { "mode": "continuous-GrYlRd" }
+        }
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Resource breakdown",
+      "description": "Sortable. $/month is the current rate held flat; it is a projection, not a bill.",
+      "gridPos": { "h": 13, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "topk(200, sum by (account_name, region, service, resource_type, resource_id, tier) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"}))"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true } } },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "$/month",
+            "mode": "binary",
+            "binary": { "left": "Value", "operator": "*", "right": "730" },
+            "replaceFields": false
+          }
+        },
+        { "id": "sortBy", "options": { "sort": [{ "field": "Value", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "$/hour" },
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 5 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "$/month" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 2 }
+            ]
+          }
+        ]
+      },
+      "options": { "footer": { "show": true, "reducer": ["sum"], "fields": ["Value"] } }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Cost dimensions within the selected service",
+      "description": "Splits one service into what you are actually paying for - Lambda duration vs requests, EBS capacity vs provisioned IOPS, CloudWatch ingestion vs storage.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service, dimension) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"})",
+          "legendFormat": "{{service}} / {{dimension}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" }, "lineWidth": 1, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean"] } }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Fastest-growing resources (1h change in burn rate)",
+      "description": "Positive means this resource costs more per hour now than it did an hour ago. This is where a runaway shows up first.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (service, resource_id) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"}) - sum by (service, resource_id) (cloudlens_resource_usd_per_hour{account_name=~\"$account\", region=~\"$region\", service=~\"$service\", tier!=\"billing\"} offset 1h))",
+          "legendFormat": "{{service}} / {{resource_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 5,
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["max"] } }
+    }
+  ]
+}

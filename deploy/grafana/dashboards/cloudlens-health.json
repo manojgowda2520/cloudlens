@@ -1,0 +1,168 @@
+{
+  "uid": "cloudlens-health",
+  "title": "AWS Cost - Collector Health & Accuracy",
+  "tags": ["cloudlens", "aws", "meta"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "time": { "from": "now-24h", "to": "now" },
+  "description": "Is the collector actually seeing everything, and are the derived numbers close to what AWS billed? Read this before trusting the overview dashboard.",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "cloudlens-prom" },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Estimate vs Cost Explorer actual",
+      "description": "Derived run-rate divided by what AWS actually billed for the same service. 1.0 is perfect. Persistently below 1.0 almost always means a Savings Plan or Reserved Instance discount, which the on-demand list prices cannot see. Above 1.0 means the model is over-counting - worth investigating.",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "refId": "A", "instant": true, "format": "table", "expr": "cloudlens_estimate_drift_ratio" }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "monitor": true } } },
+        { "id": "sortBy", "options": { "sort": [{ "field": "Value", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "decimals": 3 },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "estimate / actual" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "orange", "value": 0.7 },
+                    { "color": "green", "value": 0.9 },
+                    { "color": "orange", "value": 1.1 },
+                    { "color": "red", "value": 1.5 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Collection duration by estimator",
+      "description": "If any of these approaches your scrape_interval, the sweep is falling behind - reduce regions, raise the interval, or raise max_workers.",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (estimator) (cloudlens_collection_duration_seconds)",
+          "legendFormat": "{{estimator}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 5, "lineWidth": 1, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["max"] } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Collection error rate",
+      "description": "Errors are almost always a missing IAM permission or a service that is not available in a configured region. The collector logs the exact call that failed.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (estimator) (rate(cloudlens_collection_errors_total[15m])) / sum by (estimator) (rate(cloudlens_collections_total[15m]))",
+          "legendFormat": "{{estimator}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": { "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Time since last successful collection",
+      "gridPos": { "h": 9, "w": 6, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (estimator) (time() - cloudlens_last_success_timestamp_seconds)",
+          "legendFormat": "{{estimator}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 1, "showPoints": "never" } }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Pricing API: lookups vs cache hits",
+      "description": "After the first sweep this should be almost entirely cache hits. Sustained lookups mean the cache volume is not persisting across restarts.",
+      "gridPos": { "h": 9, "w": 6, "x": 18, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "refId": "A", "expr": "rate(cloudlens_pricing_api_lookups_total[10m])", "legendFormat": "API lookups/s" },
+        { "refId": "B", "expr": "rate(cloudlens_pricing_cache_hits_total[10m])", "legendFormat": "cache hits/s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Pinned fallback prices in use",
+      "description": "Every row here is a price the AWS Pricing API would not return, so a hardcoded us-east-1 list price is standing in. Cost for that service is approximate - especially outside us-east-1.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "refId": "A", "instant": true, "format": "table", "expr": "cloudlens_pricing_fallback_total > 0" }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "monitor": true } } },
+        { "id": "sortBy", "options": { "sort": [{ "field": "Value", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "displayName", "value": "times used" }]
+          }
+        ]
+      }
+    }
+  ]
+}

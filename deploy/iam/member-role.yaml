@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Read-only role assumed by cloudlens to derive per-resource cost in this account.
+  Deploy as a CloudFormation StackSet across the organisation, or per account.
+
+  Every action is a read. The role can enumerate resources and read metrics; it cannot
+  read object contents, secret values, or key material.
+
+Parameters:
+  CollectorAccountId:
+    Type: String
+    Description: Account ID where the cloudlens collector runs.
+    AllowedPattern: "^[0-9]{12}$"
+  ExternalId:
+    Type: String
+    NoEcho: true
+    Description: >
+      Shared secret required on sts:AssumeRole. Guards against the confused-deputy
+      problem if the collector's role ARN is ever guessed.
+    MinLength: 8
+  RoleName:
+    Type: String
+    Default: CloudlensReader
+
+Resources:
+  CloudlensReaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${CollectorAccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: CloudlensRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Metrics
+                Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: "*"
+
+              - Sid: Pricing
+                Effect: Allow
+                Action:
+                  - pricing:GetProducts
+                  - pricing:DescribeServices
+                Resource: "*"
+
+              - Sid: Billing
+                Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetDimensionValues
+                Resource: "*"
+
+              # Enumeration only. None of these return data plane contents.
+              - Sid: Inventory
+                Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeNatGateways
+                  - ec2:DescribeVpcEndpoints
+                  - lambda:ListFunctions
+                  - lambda:ListTags
+                  - rds:DescribeDBInstances
+                  - rds:ListTagsForResource
+                  - dynamodb:ListTables
+                  - dynamodb:DescribeTable
+                  - s3:ListAllMyBuckets
+                  - s3:GetBucketLocation
+                  - elasticfilesystem:DescribeFileSystems
+                  - ecr:DescribeRepositories
+                  - ecr:DescribeImages
+                  - ecs:ListClusters
+                  - ecs:ListTasks
+                  - ecs:DescribeTasks
+                  - eks:ListClusters
+                  - elasticache:DescribeCacheClusters
+                  - es:ListDomainNames
+                  - es:DescribeDomains
+                  - redshift:DescribeClusters
+                  - sqs:ListQueues
+                  - sns:ListTopics
+                  - apigateway:GET
+                  - kinesis:ListStreams
+                  - kinesis:DescribeStreamSummary
+                  - logs:DescribeLogGroups
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - cloudfront:ListDistributions
+                  - route53:ListHostedZones
+                  - secretsmanager:ListSecrets
+                  - kms:ListKeys
+                  - kms:DescribeKey
+                Resource: "*"
+
+Outputs:
+  RoleArn:
+    Description: Put this in the cloudlens config for this account.
+    Value: !GetAtt CloudlensReaderRole.Arn
